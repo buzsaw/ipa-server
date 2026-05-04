@@ -32,6 +32,32 @@ func redirect(m map[string]string, next http.Handler) http.Handler {
 	})
 }
 
+func isIOS6Safari(ua string) bool {
+	if ua == "" {
+		return false
+	}
+	if !strings.Contains(ua, "Safari") {
+		return false
+	}
+	if !(strings.Contains(ua, "iPhone") || strings.Contains(ua, "iPad") || strings.Contains(ua, "iPod")) {
+		return false
+	}
+	return strings.Contains(ua, " OS 6_") || strings.Contains(ua, "Version/6")
+}
+
+func legacyPagePath(path string, ua string) (string, bool) {
+	if !isIOS6Safari(ua) {
+		return "", false
+	}
+	if path == "/" || path == "/index.html" {
+		return "/legacy/", true
+	}
+	if path == "/app/" || path == "/app/index.html" {
+		return "/legacy/app/", true
+	}
+	return "", false
+}
+
 func main() {
 
 	addr := flag.String("addr", "0.0.0.0", "bind addr")
@@ -199,10 +225,16 @@ func main() {
 		http.FS(public.FS),
 		httpfs.NewAferoFS(uploadFS),
 	)
+	fileHandler := http.FileServer(staticFS)
 	serve.Handle("/", redirect(map[string]string{
 		// random path to block local metadata
 		fmt.Sprintf("/%s", *metadataPath): fmt.Sprintf("/%s", uuid.NewString()),
-	}, http.FileServer(staticFS)))
+	}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if p, ok := legacyPagePath(r.URL.Path, r.UserAgent()); ok {
+			r.URL.Path = p
+		}
+		fileHandler.ServeHTTP(w, r)
+	})))
 
 	host := fmt.Sprintf("%s:%s", *addr, *port)
 	logger.Log("msg", fmt.Sprintf("SERVER LISTEN ON: http://%v", host))
