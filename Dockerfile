@@ -13,7 +13,7 @@ RUN --mount=type=cache,id=gomod,target=/go/pkg/mod \
   CGO_ENABLED=1 go build -ldflags '-linkmode "external" --extldflags "-static"' cmd/ipasd/ipasd.go
 
 # runtime
-FROM alpine:3.10.3
+FROM alpine:3.18
 WORKDIR /app
 COPY --from=builder /src/ipasd /app
 COPY docker-entrypoint.sh /docker-entrypoint.sh
